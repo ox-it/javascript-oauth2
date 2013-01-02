@@ -154,8 +154,7 @@
                             that.removeAccessToken(); // It doesn't work any more.
                             that.refreshAccessToken(options);
                         } else if (!headersExposed && !that.getRefreshToken()) {
-                            that.removeAccessToken(); // It doesn't work any more.
-                            that.refreshAccessToken(options);
+                            that.requestAuthorization(options);
                         } else
                             bubbleError = true;
                     } else
