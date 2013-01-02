@@ -1,7 +1,9 @@
 javascript-oauth2
 =================
 
-An implementation of an OAuth2 client in pure JavaScript for web applications.
+An implementation of an OAuth2 client in pure JavaScript for web applications,
+licensed under the `3-clause BSD license
+<http://opensource.org/licenses/BSD-3-Clause>`_.
 
 Overview
 --------
