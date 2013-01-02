@@ -52,6 +52,10 @@ It is believed that it should work in:
 
 * Internet Explorer 8+
 
+It does not work in:
+
+* Android 2.3.3 Browser (intercepts the 401 response before we can do anything about it)
+
 Example
 -------
 
