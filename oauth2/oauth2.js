@@ -26,8 +26,13 @@
 
 (function() {
 	var authorizationResponseEventName = 'oauth2-authorization-response';
+	var requiredOptions = ['clientID', 'clientSecret', 'authorizeEndpoint', 'tokenEndpoint'];
 
 	var OAuth2XMLHttpRequest = function (options) {
+		for (var i=0; i<requiredOptions.length; i++)
+			if (options[requiredOptions[i]] == undefined)
+				throw new Error(requiredOptions[i] + ' not defined for OAuth2');
+
 		this._headers = [];
 		this._openArguments = null;
 		this._sendArguments = null;
@@ -42,7 +47,8 @@
 		this._xhr.onreadystatechange = function() { that._onreadystatechange.apply(that); };
 	};
 
-	xhr.prototype._defaultOptions = {
+	OAuth2XMLHttpRequest.prototype = {
+	_defaultOptions: {
 		authorizeWindowWidth: 500,
 		authorizeWindowHeight: 500,
 		xmlHttpRequest: function() { return new (window.XDomainRequest != undefined ? XDomainRequest : XMLHttpRequest); },
@@ -50,24 +56,24 @@
 		// Override to ask user for permission before calling authorize()
 		requestAuthorization: function(authorize) { authorize(); },
 		localStoragePrefix: 'oauth2.'
-	};
+	},
 
 	// Utility methods
 
-	xhr.prototype._extend = function () {
+	_extend: function () {
 		var obj = arguments[0];
 		for (var i=1; i<arguments.length; i++)
 			for (var k in arguments[i])
 				obj[k] = arguments[i][k];
 		return obj;
-	};
+	},
 
-	xhr.prototype._getURLParameter = function(search, name) {
+	_getURLParameter: function(search, name) {
 		var part = search.match(RegExp("[?|&]"+name+'=(.*?)(&|$)'));
 		if (part) return decodeURIComponent(part[1]);
-  	};
+  	},
 
-	xhr.prototype._parseAuthenticateHeader = function(value, scheme) {
+	_parseAuthenticateHeader: function(value, scheme) {
 		if (!value) return null;
 		var re = /([a-z_\d]+)(=("([^\\"]*(\\.)?)*")|[a-z_\d]*)?(,)?(\s+|$)/i;
 		var methods = [], method = null;
@@ -89,9 +95,9 @@
 			return null;
 		} else
 			return methods;
-	};
+	},
 
-	xhr.prototype._param = function(data) {
+	_param: function(data) {
 		var result = "";
 		for (var key in data) {
 			if (result) result += "&";
@@ -100,24 +106,24 @@
 			result += encodeURIComponent(data[key]);
 		}
 		return result;
-	};
+	},
 
-	xhr.prototype._getAccessToken  = function() { return window.localStorage.getItem(this._accessTokenParamName); };
-	xhr.prototype._getRefreshToken = function() { return window.localStorage.getItem(this._refreshTokenParamName); };
-	xhr.prototype._setAccessToken  = function(value) { return window.localStorage.setItem(this._accessTokenParamName , value); };
-	xhr.prototype._setRefreshToken = function(value) { return window.localStorage.setItem(this._refreshTokenParamName, value); };
-	xhr.prototype._removeAccessToken  = function() { return window.localStorage.removeItem(this._accessTokenParamName); };
-	xhr.prototype._removeRefreshToken = function() { return window.localStorage.removeItem(this._refreshTokenParamName); };
+	_getAccessToken:     function() { return window.localStorage.getItem(this._accessTokenParamName); },
+	_getRefreshToken:    function() { return window.localStorage.getItem(this._refreshTokenParamName); },
+	_setAccessToken:     function(value) { return window.localStorage.setItem(this._accessTokenParamName , value); },
+	_setRefreshToken:    function(value) { return window.localStorage.setItem(this._refreshTokenParamName, value); },
+	_removeAccessToken:  function() { return window.localStorage.removeItem(this._accessTokenParamName); },
+	_removeRefreshToken: function() { return window.localStorage.removeItem(this._refreshTokenParamName); },
 
 
-	xhr.prototype._requestAuthorization = function() {
+	_requestAuthorization: function() {
 		var that = this;
 		this._options.requestAuthorization(function() {
 			that._authorize();
 		});
-	};
+	},
 
-	xhr.prototype._onreadystatechange = function() {
+	_onreadystatechange: function() {
 		var bubble = true;
 		var xhr = this._xhr;
 		this.readyState = xhr.readyState;
@@ -161,9 +167,9 @@
 		if (bubble && this.onreadystatechange)
 			this.onreadystatechange.apply(this);
 
-	};
+	},
 
-	xhr.prototype._authorize = function() {
+	_authorize: function() {
 		console.log('authorize');
 		var that = this;
 		window.oauthAuthorizationResponse = function(window, search) {
@@ -181,9 +187,9 @@
 			+ ',left=' + (screen.width - this._options.authorizeWindowWidth) / 2
 			+ ',top=' + (screen.height - this._options.authorizeWindowHeight) / 2
 			+ ',menubar=no,toolbar=no');
-		};
+	},
 
-	xhr.prototype._authorizationResponse = function(search, options) {
+	_authorizationResponse: function(search, options) {
 		var req = this._options.xmlHttpRequest();
 		var that = this;
 		req.open("POST", this._options.tokenEndpoint, false);
@@ -205,9 +211,9 @@
 			redirect_uri: window.location.toString()
 		}));
 		this._replay();
-	};
+	},
 
-	xhr.prototype._refreshAccessToken = function(options) {
+	_refreshAccessToken: function(options) {
 		var req = this._options.xmlHttpRequest();
 		var that = this;
 		req.onreadystatechange = function() {
@@ -232,9 +238,9 @@
 			grant_type: 'refresh_token',
 			refresh_token: this._getRefreshToken()
 		}));
-	};
+	},
 
-	xhr.prototype._replay = function() {
+	_replay: function() {
 		console.log("replay");
 		if (this._xhr.status > 0)
 			this.abort();
@@ -243,26 +249,26 @@
 		for (var i=0; i<this._headers.length; i++)
 			this._xhr.setRequestHeader.apply(this._xhr, this._headers[i]);
 		this.send.apply(this, this._sendArguments);
-	}
+	},
 
-	xhr.prototype.abort = function() {
+	abort: function() {
 		console.log("abort");
 		this._xhr.abort();
 		this._replaying = false;
-	};
+	},
 
-	xhr.prototype.setRequestHeader = function(header, value) {
+	setRequestHeader: function(header, value) {
 		this._headers.push(arguments);
 		this._xhr.setRequestHeader(header, value);
-	}
+	},
 
-	xhr.prototype.open = function(method, url, async) {
+	open: function(method, url, async) {
 		console.log("open");
 		this._openArguments = arguments;
 		this._xhr.open(method, url, async);
-	};
+	},
 
-	xhr.prototype.send = function(data) {
+	send: function(data) {
 		console.log("send");
 		this._sendArguments = arguments;
 		var accessToken = this._getAccessToken();
@@ -272,6 +278,7 @@
 		this._xhr.send(data);
 
 		return;
+	}
 	};
 
 	window.oauth2 = {
