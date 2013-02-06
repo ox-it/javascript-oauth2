@@ -172,7 +172,7 @@
 		};
 		var authorizeURL = this._options.authorizeEndpoint + '?' + this._param({
 			response_type: "code",
-			client_id: this._options.consumerKey,
+			client_id: this._options.clientID,
 			redirect_uri: window.location.toString()
 		});
 		this._authorizationWindow = window.open(authorizeURL, 'oauth-authorize',
@@ -198,8 +198,8 @@
 			}
 		}
 		req.send(this._param({
-			client_id: this._options.consumerKey,
-			client_secret: this._options.consumerSecret,
+			client_id: this._options.clientID,
+			client_secret: this._options.clientSecret,
 			grant_type: 'authorization_code',
 			code: this._getURLParameter(search, 'code'),
 			redirect_uri: window.location.toString()
@@ -227,8 +227,8 @@
 		req.setRequestHeader("Accept", "application/json");
 		req.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
 		req.send(this._param({
-			client_id: this._options.consumerKey,
-			client_secret: this._options.consumerSecret,
+			client_id: this._options.clientID,
+			client_secret: this._options.clientSecret,
 			grant_type: 'refresh_token',
 			refresh_token: this._getRefreshToken()
 		}));
