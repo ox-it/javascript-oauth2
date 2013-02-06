@@ -8,15 +8,16 @@ licensed under the `3-clause BSD license
 Overview
 --------
 
-Provides a ``window.OAuth2`` class with an ``ajax()`` method for making
-OAuth2-protected requests.
+Provides a ``window.oauth2`` object, containing a ``OAuth2XMLHttpRequest``
+class implementing the XMLHttpRequest interface for making OAuth2-protected
+requests.
 
 Here's the feature list:
 
 * Transparently handles ``401 Unauthorized`` responses from the remote web service.
 * Provides a hook for the application to prompt the user to visit the remote web service to authorize the application.
 * Transparently refreshes expired access tokens if a refresh token has previously been provided.
-* Wraps the `jQuery ajax() method <http://api.jquery.com/jQuery.ajax/>`_.
+* Wraps a ``XMLHttpRequest`` or ``XDomainRequest`` object, or something that acts like one.
 * Supports `Bearer authentication <http://tools.ietf.org/html/rfc6750>`_.
 
 
@@ -24,12 +25,15 @@ Requirements
 ------------
 
 The remote web service and browser must both support `Cross-Origin Resource
-Sharing (CORS) <http://www.html5rocks.com/en/tutorials/cors/>`_.
+Sharing (CORS) <http://www.html5rocks.com/en/tutorials/cors/>`_ on the
+protected resource.
 
-The OAuth2 token endpoint should return the following headers with their responses::
+The OAuth2 token endpoint should ideally return the following headers with their responses::
 
    Access-Control-Allow-Origin: https://your-domain
    Access-Control-Expose-Headers: WWW-Authenticate
+
+All is not lost if it doesn't; the library will make intelligent guesses in the dark.
 
 Each protected resource must support `preflighted requests
 <http://www.w3.org/TR/cors/#cross-origin-request-with-preflight-0>`_. Here's an
@@ -56,10 +60,21 @@ The web service must respond to requests requiring authentication with ``401
 Unauthorized``, not a redirect to a login form. In time, we should support
 pre-emptive authorization and checking for login page redirects.
 
-The ``OAuth2.ajax()`` method is a drop-in replacement for ``jQuery.ajax()``,
-and introduces a dependency on `jQuery <http://jquery.com/>`_. In time this
-should be replaced with a wrapper around ``XMLHttpRequest``, which can be
-passed to ``jQuery.ajax()``, but doesn't depend on it.
+You can use ``OAuth2XMLHttpRequest`` with `jQuery <http://jquery.com/>`_ like
+this:
+
+.. code:: javascript
+
+   $.ajax('https://example.com/', {
+       xhr: oauth2.factory({
+           authorizeEndpoint: 'https://example.com/oauth2/authorize',
+           tokenEndpoint: 'https://example.com/oauth2/token',
+           clientID: 'abcdefgh',
+           clientSecret: 'ijklmnop',
+           localStoragePrefix: 'oauth2.com.example'
+       },
+       ...
+   });
 
 
 Browser support
@@ -108,11 +123,11 @@ Here's a minimal example:
 
 .. code:: javascript
 
-   var oauth2 = new OAuth2({
+   var xhr = new oauth.OAuth2HttpRequest({
        authorizeEndpoint: "https://example.com/oauth2/authorize",
        tokenEndpoint: "https://example.com/oauth2/token",
-       consumerKey: "client id",
-       consumerSecret: "client secret",
+       clientID: "client id",
+       clientSecret: "client secret",
        localStoragePrefix: "oauth2.example.", // Used for storing credentials in localStorage
        requestAuthorization: function(callback) {
            /* This function will be called if the user is required to visit the *
@@ -137,9 +152,10 @@ Here's a minimal example:
        }
    )};
 
-   oauth2.ajax({
-       url: "https://example.com/protected-resource",
-       success: function(data) { alert("We have data!"); },
-       error: function(xhr, textStatus, errorThrown) { alert("Something went wrong: " + textStatus); }
-   });
+   xhr.onreadystatechange = function() {
+      // get something
+   };
+   xhr.open('GET', 'https://example.com/protected-resource');
+   xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+   xhr.send('param=value&otherparam=othervalue');
 
