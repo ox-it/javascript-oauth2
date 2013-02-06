@@ -27,7 +27,7 @@
 (function() {
 	var authorizationResponseEventName = 'oauth2-authorization-response';
 
-	var xhr = function (options) {
+	var OAuth2XMLHttpRequest = function (options) {
 		this._headers = [];
 		this._openArguments = null;
 		this._sendArguments = null;
@@ -275,7 +275,7 @@
 	};
 
 	window.oauth2 = {
-		OAuth2XMLHttpRequest: xhr,
+		OAuth2XMLHttpRequest: OAuth2XMLHttpRequest,
 		factory: function(options) { return function() { return new xhr(options); }; }
 	};
 
