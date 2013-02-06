@@ -48,6 +48,13 @@
 	};
 
 	OAuth2XMLHttpRequest.prototype = {
+
+	UNSENT: 0,
+	OPENED: 1,
+	HEADERS_RECEIVED: 2,
+	LOADING: 3,
+	DONE: 4,
+
 	_defaultOptions: {
 		authorizeWindowWidth: 500,
 		authorizeWindowHeight: 500,
@@ -246,6 +253,8 @@
 			this.abort();
 		this._replaying = true;
 		this.open.apply(this, this._openArguments);
+		if (this._overriddenMimeType)
+			this._xhr.overrideMimeType(this._overriddenMimeType);
 		for (var i=0; i<this._headers.length; i++)
 			this._xhr.setRequestHeader.apply(this._xhr, this._headers[i]);
 		this.send.apply(this, this._sendArguments);
@@ -274,16 +283,27 @@
 		var accessToken = this._getAccessToken();
 		if (accessToken)
 			this._xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
+		if (this.responseType)
+			this._xhr.responseType = this.responseType;
 
 		this._xhr.send(data);
 
 		return;
-	}
+	},
+
+	overrideMimeType: function(mime) {
+		this._overriddenMimeType = mime;
+		this._xhr.overrideMimeType(mime);
+	},
+
+	getAllResponseHeaders: function() { return this._xhr.getAllResponseHeaders(); },
+	getResponseHeader: function(header) { return this._xhr.getResponseHeader(header); }
+
 	};
 
 	window.oauth2 = {
 		OAuth2XMLHttpRequest: OAuth2XMLHttpRequest,
-		factory: function(options) { return function() { return new xhr(options); }; }
+		factory: function(options) { return function() { return new OAuth2XMLHttpRequest(options); }; }
 	};
 
 	// Pass the authorization back to the opener if necessary.
