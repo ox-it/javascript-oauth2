@@ -177,7 +177,6 @@
 	},
 
 	_authorize: function() {
-		console.log('authorize');
 		var that = this;
 		window.oauthAuthorizationResponse = function(window, search) {
 			if (window == that._authorizationWindow)
@@ -248,7 +247,6 @@
 	},
 
 	_replay: function() {
-		console.log("replay");
 		if (this._xhr.status > 0)
 			this.abort();
 		this._replaying = true;
@@ -261,7 +259,6 @@
 	},
 
 	abort: function() {
-		console.log("abort");
 		this._xhr.abort();
 		this._replaying = false;
 	},
@@ -272,7 +269,6 @@
 	},
 
 	open: function(method, url, async) {
-		console.log("open");
 		this._openArguments = arguments;
 		if (this.responseType)
 			this._xhr.responseType = this.responseType;
@@ -280,7 +276,6 @@
 	},
 
 	send: function(data) {
-		console.log("send");
 		this._sendArguments = arguments;
 		var accessToken = this._getAccessToken();
 		if (accessToken)
