@@ -276,7 +276,7 @@
 
 	window.oauth2 = {
 		OAuth2XMLHttpRequest: xhr,
-		factory: function(options) { return new xhr(options); }
+		factory: function(options) { return function() { return new xhr(options); }; }
 	};
 
 	// Pass the authorization back to the opener if necessary.
