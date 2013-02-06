@@ -134,18 +134,18 @@
 			this.responseXML = xhr.responseXML;
 		}
 
-		if (this._xhr.readyState == this._xhr.DONE && this._xhr.status == 401) {
+		if (xhr.readyState == xhr.DONE && xhr.status == 401) {
 			var bearerParams = this._parseAuthenticateHeader(this._xhr.getResponseHeader('WWW-Authenticate'), 'Bearer')
-			var headersExposed = !!this._xhr.getAllResponseHeaders(); // this is a hack for Firefox
+			var headersExposed = !!xhr.getAllResponseHeaders(); // this is a hack for Firefox
 			if (bearerParams && bearerParams.error == undefined) {
 				this._requestAuthorization();
 				bubble = false;
-			} else if (((bearerParams && bearerParams.error == 'invalid_token') || !headersExposed) && this._getRequestToken()) {
+			} else if (((bearerParams && bearerParams.error == 'invalid_token') || !headersExposed) && this._getAccessToken()) {
 				this._removeAccessToken(); // It doesn't work any more.
-				this._refreshAccessToken(options);
+				this._refreshAccessToken();
 				bubble = false;
-			} else if (!headersExposed && !that.getRefreshToken()) {
-				this._requestAuthorization(options);
+			} else if (!headersExposed && !this._getRefreshToken()) {
+				this._requestAuthorization();
 				bubble = false;
 			}
 		}
