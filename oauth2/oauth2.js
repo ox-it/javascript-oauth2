@@ -47,6 +47,8 @@
 		authorizeWindowHeight: 500,
 		xmlHttpRequest: function() { return new (window.XDomainRequest != undefined ? XDomainRequest : XMLHttpRequest); },
 		supportsCORS: window.XDomainRequest != undefined || "withCredentials" in XMLHttpRequest,
+		// Override to ask user for permission before calling authorize()
+		requestAuthorization: function(authorize) { authorize(); },
 		localStoragePrefix: 'oauth2.'
 	};
 
@@ -116,31 +118,47 @@
 	};
 
 	xhr.prototype._onreadystatechange = function() {
-		this.readyState = this._xhr.readyState;
-		if (this._xhr.readyState >= 2) {
-			this.status = this._xhr.status;
-			this.statusText = this._xhr.statusText;
+		var bubble = true;
+		var xhr = this._xhr;
+		this.readyState = xhr.readyState;
+
+
+		if (xhr.readyState >= 2) {
+			this.status = xhr.status;
+			this.statusText = xhr.statusText;
 		}
-		if (this._xhr.readyState >= 3) {
-			this.response = this._xhr.response;
-			this.responseText = this._xhr.responseText;
-			this.responseType = this._xhr.responseType;
-			this.responseXML = this._xhr.responseXML;
+		if (xhr.readyState >= 3) {
+			this.response = xhr.response;
+			this.responseText = xhr.responseText;
+			this.responseType = xhr.responseType;
+			this.responseXML = xhr.responseXML;
 		}
 
 		if (this._xhr.readyState == this._xhr.DONE && this._xhr.status == 401) {
-			this._authorize();
+			var bearerParams = this._parseAuthenticateHeader(this._xhr.getResponseHeader('WWW-Authenticate'), 'Bearer')
+			var headersExposed = !!this._xhr.getAllResponseHeaders(); // this is a hack for Firefox
+			if (bearerParams && bearerParams.error == undefined) {
+				this._requestAuthorization();
+				bubble = false;
+			} else if (((bearerParams && bearerParams.error == 'invalid_token') || !headersExposed) && this._getRequestToken()) {
+				this._removeAccessToken(); // It doesn't work any more.
+				this._refreshAccessToken(options);
+				bubble = false;
+			} else if (!headersExposed && !that.getRefreshToken()) {
+				this._requestAuthorization(options);
+				bubble = false;
+			}
 		}
 
 		// Don't duplicate these events if we're having a second attempt
 		if (this._replaying && this._xhr.readyState <= 2)
-			return;
+			bubble = false;
 		// Don't pass on if we're seeking authorization
-		if (this._xhr.readyState >= 3 && this._xhr.status == 401)
-			return;
+		if (this._xhr.readyState == 3 && this._xhr.status == 401)
+			bubble = false;
 
 		// Pass it onwards.
-		if (this.onreadystatechange)
+		if (bubble && this.onreadystatechange)
 			this.onreadystatechange.apply(this);
 
 	};
@@ -254,31 +272,6 @@
 		this._xhr.send(data);
 
 		return;
-		var newOptions = $.extend({}, options, {
-			error: function(xhr, textStatus, errorThrown) {
-				var bearerParams = that.parseAuthenticateHeader(xhr.getResponseHeader('WWW-Authenticate'), 'Bearer')
-				var headersExposed = !!xhr.getAllResponseHeaders(); // this is a hack for Firefox
-				var bubbleError = false;
-				if (xhr.status == 401) {
-					if (bearerParams && bearerParams.error == undefined) {
-						that.requestAuthorization(options);
-					} else if (((bearerParams && bearerParams.error == "invalid_token") || !headersExposed) && that.getRefreshToken()) {
-						that.removeAccessToken(); // It doesn't work any more.
-						that.refreshAccessToken(options);
-					} else if (!headersExposed && !that.getRefreshToken()) {
-						that.requestAuthorization(options);
-					} else
-						bubbleError = true;
-				} else
-					bubbleError = true;
-				if (bubbleError && options.error) {
-					// Nothing more we can do; pass the error on.
-					options.error(xhr, textStatus, errorThrown);
-				}
-			},
-			headers: $.extend({}, options.headers || {}, extraHeaders)
-		});
-		$.ajax(newOptions);
 	};
 
 	window.oauth2 = {
