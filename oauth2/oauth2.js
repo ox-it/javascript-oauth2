@@ -274,6 +274,8 @@
 	open: function(method, url, async) {
 		console.log("open");
 		this._openArguments = arguments;
+		if (this.responseType)
+			this._xhr.responseType = this.responseType;
 		this._xhr.open(method, url, async);
 	},
 
@@ -283,8 +285,6 @@
 		var accessToken = this._getAccessToken();
 		if (accessToken)
 			this._xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
-		if (this.responseType)
-			this._xhr.responseType = this.responseType;
 
 		this._xhr.send(data);
 
