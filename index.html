@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="viewport" content="width=640" />
+
+    <link rel="stylesheet" href="stylesheets/core.css" media="screen"/>
+    <link rel="stylesheet" href="stylesheets/mobile.css" media="handheld, only screen and (max-device-width:640px)"/>
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css"/>
+
+    <script type="text/javascript" src="javascripts/modernizr.js"></script>
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script type="text/javascript" src="javascripts/headsmart.min.js"></script>
+    <script type="text/javascript">
+      $(document).ready(function () {
+        $('#main_content').headsmart()
+      })
+    </script>
+    <title>Javascript-oauth2 by ox-it</title>
+  </head>
+
+  <body>
+    <a id="forkme_banner" href="https://github.com/ox-it/javascript-oauth2">View on GitHub</a>
+    <div class="shell">
+
+      <header>
+        <span class="ribbon-outer">
+          <span class="ribbon-inner">
+            <h1>Javascript-oauth2</h1>
+            <h2>Implementation of OAuth2 in JavaScript using CORS</h2>
+          </span>
+          <span class="left-tail"></span>
+          <span class="right-tail"></span>
+        </span>
+      </header>
+
+      <section id="downloads">
+        <span class="inner">
+          <a href="https://github.com/ox-it/javascript-oauth2/zipball/master" class="zip"><em>download</em> .ZIP</a><a href="https://github.com/ox-it/javascript-oauth2/tarball/master" class="tgz"><em>download</em> .TGZ</a>
+        </span>
+      </section>
+
+
+      <span class="banner-fix"></span>
+
+
+      <section id="main_content">
+        <h1>javascript-oauth2</h1>
+
+<p>An implementation of an OAuth2 client in pure JavaScript for web applications,
+licensed under the <code>3-clause BSD license
+&lt;http://opensource.org/licenses/BSD-3-Clause&gt;</code>_.</p>
+
+<h2>Overview</h2>
+
+<p>Provides a <code>window.oauth2</code> object, containing a <code>OAuth2XMLHttpRequest</code>
+class implementing the XMLHttpRequest interface for making OAuth2-protected
+requests.</p>
+
+<p>Here's the feature list:</p>
+
+<ul>
+<li>Transparently handles <code>401 Unauthorized</code> responses from the remote web service.</li>
+<li>Provides a hook for the application to prompt the user to visit the remote web service to authorize the application.</li>
+<li>Transparently refreshes expired access tokens if a refresh token has previously been provided.</li>
+<li>Wraps a <code>XMLHttpRequest</code> or <code>XDomainRequest</code> object, or something that acts like one.</li>
+<li>Supports <code>Bearer authentication &lt;http://tools.ietf.org/html/rfc6750&gt;</code>_.</li>
+</ul><h2>Requirements</h2>
+
+<p>The remote web service and browser must both support <code>Cross-Origin Resource
+Sharing (CORS) &lt;http://www.html5rocks.com/en/tutorials/cors/&gt;</code>_ on the
+protected resource.</p>
+
+<p>The OAuth2 token endpoint should ideally return the following headers with their responses::</p>
+
+<p>Access-Control-Allow-Origin: https://your-domain
+   Access-Control-Expose-Headers: WWW-Authenticate</p>
+
+<p>All is not lost if it doesn't; the library will make intelligent guesses in the dark.</p>
+
+<p>Each protected resource must support <code>preflighted requests
+&lt;http://www.w3.org/TR/cors/#cross-origin-request-with-preflight-0&gt;</code>_. Here's an
+example request and response::</p>
+
+<p>OPTIONS /protected-resource
+   Access-Control-Request-Headers: authorization
+   Access-Control-Request-Method: PUT</p>
+
+<p>Allow: GET,POST,PUT,DELETE,HEAD
+   Access-Control-Allow-Headers: authorization
+   Access-Control-Allow-Methods: GET,POST,PUT,DELETE,HEAD
+   Access-Control-Allow-Origin: https://your-domain
+   Access-Control-Expose-Headers: WWW-Authenticate</p>
+
+<p>It may be simplest to mirror the <code>Access-Control-Request-Headers</code> request
+header to the <code>Access-Control-Allow-Headers</code> response header, and to
+duplicate the <code>Allow</code> response header (listing all available methods) to the
+<code>Access-Control-Allow-Methods</code> response header. Note that the response should
+be a <code>200 OK</code> or <code>204 No Content</code>, even if a non-OPTIONS request would
+return <code>401 Unauthorized</code>.</p>
+
+<p>The web service must respond to requests requiring authentication with <code>401
+Unauthorized</code>, not a redirect to a login form. In time, we should support
+pre-emptive authorization and checking for login page redirects.</p>
+
+<p>You can use <code>OAuth2XMLHttpRequest</code> with <code>jQuery &lt;http://jquery.com/&gt;</code>_ like
+this:</p>
+
+<p>.. code:: javascript</p>
+
+<p>$.ajax('<a href="https://example.com/">https://example.com/</a>', {
+       xhr: oauth2.factory({
+           authorizeEndpoint: '<a href="https://example.com/oauth2/authorize">https://example.com/oauth2/authorize</a>',
+           tokenEndpoint: '<a href="https://example.com/oauth2/token">https://example.com/oauth2/token</a>',
+           clientID: 'abcdefgh',
+           clientSecret: 'ijklmnop',
+           localStoragePrefix: 'oauth2.com.example'
+       },
+       ...
+   });</p>
+
+<h2>Browser support</h2>
+
+<p>This has been tested in:</p>
+
+<ul>
+<li>Google Chrome 23</li>
+<li>Firefox 17 (<code>xhr.getResponseHeader()</code> support on CORS requests is broken, but worked around)</li>
+<li>Opera 12</li>
+</ul><p>It is believed that it should work in:</p>
+
+<ul>
+<li>Internet Explorer 8+</li>
+</ul><p>It does not work in:</p>
+
+<ul>
+<li>Android 2.3.3 Browser (intercepts the 401 response before we can do anything about it)</li>
+</ul><h2>Security considerations</h2>
+
+<p>If your web application is served over HTTP, an attacker will be able to
+intercept the OAuth2 authorization code added to the redirection URI. See
+<code>Section 4.12 of the OAuth 2.0 specification
+&lt;http://tools.ietf.org/html/rfc6749#section-4.1.2&gt;</code>_ for further details. If
+your application is on the public web, an attacker will also have access to the
+client secret, and will be able to combine them to request an access token in
+order to imitate the authenticated user. It is strongly RECOMMENDED that your
+application is served over HTTPS.</p>
+
+<p>If your application is served from the same domain as untrusted code (such as
+when using Apache's <code>UserDir directive
+&lt;http://httpd.apache.org/docs/2.4/howto/public_html.html&gt;</code>_ to host sites at
+e.g. <code>http://users.example.org/~alice/</code>), that other code will be able to
+access the OAuth2 access token from local storage, and will be able to make
+authenticated requests. It is strongly RECOMMENDED that all JavaScript on your
+application's domain is trusted.</p>
+
+<h2>Example</h2>
+
+<p>Here's a minimal example:</p>
+
+<p>.. code:: javascript</p>
+
+<p>var xhr = new oauth.OAuth2HttpRequest({
+       authorizeEndpoint: "<a href="https://example.com/oauth2/authorize">https://example.com/oauth2/authorize</a>",
+       tokenEndpoint: "<a href="https://example.com/oauth2/token">https://example.com/oauth2/token</a>",
+       clientID: "client id",
+       clientSecret: "client secret",
+       localStoragePrefix: "oauth2.example.", // Used for storing credentials in localStorage
+       requestAuthorization: function(callback) {
+           /* This function will be called if the user is required to visit the *
+            * remote web service to authorize the application. If the user      *
+            * consents, call callback() to open a pop-up window.                */</p>
+
+<pre><code>       // Let's use the jQuery UI dialog (http://jqueryui.com/dialog/)
+       $('#dialog-authorize').dialog({
+           resizable: false,
+           width: 500,
+           modal: true,
+           buttons: {
+               "Proceed": function() {
+                   $(this).dialog("close"); 
+                   callback();
+               },
+               "Cancel": function() {
+                   $(this).dialog("close");
+               }
+           }
+       }); 
+   }
+</code></pre>
+
+<p>)};</p>
+
+<p>xhr.onreadystatechange = function() {
+      // get something
+   };
+   xhr.open('GET', '<a href="https://example.com/protected-resource'">https://example.com/protected-resource'</a>);
+   xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+   xhr.send('param=value&amp;otherparam=othervalue');</p>
+      </section>
+
+      <footer>
+        <span class="ribbon-outer">
+          <span class="ribbon-inner">
+            <p>this project by <a href="https://github.com/ox-it">ox-it</a> can be found on <a href="https://github.com/ox-it/javascript-oauth2">GitHub</a></p>
+          </span>
+          <span class="left-tail"></span>
+          <span class="right-tail"></span>
+        </span>
+        <p>Generated with <a href="http://pages.github.com">GitHub Pages</a> using Merlot</p>
+        <span class="octocat"></span>
+      </footer>
+
+    </div>
+
+    
+  </body>
+</html>
