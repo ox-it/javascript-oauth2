@@ -198,17 +198,14 @@
 	_authorizationResponse: function(search, options) {
 		var req = this._options.xmlHttpRequest();
 		var that = this;
+		var data;
 		req.open("POST", this._options.tokenEndpoint, false);
 		req.setRequestHeader("Accept", "application/json");
 		req.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
 		req.onreadystatechange = function() {
-			if (req.readyState == req.DONE) {
-				var data = JSON.parse(req.responseText);
-				that._setAccessToken(data.access_token || '');
-				that._setRefreshToken(data.refresh_token || '');
-
-			}
-		}
+			if (req.readyState == req.DONE)
+				data = JSON.parse(req.responseText);
+		};
 		req.send(this._param({
 			client_id: this._options.clientID,
 			client_secret: this._options.clientSecret,
@@ -216,7 +213,14 @@
 			code: this._getURLParameter(search, 'code'),
 			redirect_uri: window.location.toString()
 		}));
-		this._replay();
+		if (data.error) {
+			if (this.oauthError)
+				this.oauthError("authorize", data);
+		} else {
+			this._setAccessToken(data.access_token || '');
+			this._setRefreshToken(data.refresh_token || '');
+			this._replay();
+		}
 	},
 
 	_refreshAccessToken: function(options) {
