@@ -39,6 +39,7 @@
 		this._options = this._extend({}, this._defaultOptions, options || {});
 		this._accessTokenParamName = this._options.localStoragePrefix+'access-token';
 		this._refreshTokenParamName = this._options.localStoragePrefix+'refresh-token';
+		this._authMechanismParamName = this._options.localStoragePrefix+'auth-mechanism';
 		this._authorizationWindow = null;
 		this._xhr = this._options.xmlHttpRequest();
 		this._replaying = false;
@@ -62,7 +63,8 @@
 		supportsCORS: window.XDomainRequest != undefined || "withCredentials" in XMLHttpRequest,
 		// Override to ask user for permission before calling authorize()
 		requestAuthorization: function(authorize) { authorize(); },
-		localStoragePrefix: 'oauth2.'
+		localStoragePrefix: 'oauth2.',
+		error: function(type, data) { console.log(["OAuth2 error", type, data]); }
 	},
 
 	// Utility methods
@@ -117,10 +119,13 @@
 
 	_getAccessToken:     function() { return window.localStorage.getItem(this._accessTokenParamName); },
 	_getRefreshToken:    function() { return window.localStorage.getItem(this._refreshTokenParamName); },
+	_getAuthMechanism:    function() { return window.localStorage.getItem(this._authMechanismParamName); },
 	_setAccessToken:     function(value) { return window.localStorage.setItem(this._accessTokenParamName , value); },
 	_setRefreshToken:    function(value) { return window.localStorage.setItem(this._refreshTokenParamName, value); },
+	_setAuthMechanism:    function(value) { return window.localStorage.setItem(this._authMechanismParamName, value); },
 	_removeAccessToken:  function() { return window.localStorage.removeItem(this._accessTokenParamName); },
 	_removeRefreshToken: function() { return window.localStorage.removeItem(this._refreshTokenParamName); },
+	_removeAuthMechanism: function() { return window.localStorage.removeItem(this._authMechanismParamName); },
 
 
 	_requestAuthorization: function() {
@@ -147,13 +152,24 @@
 			this.responseXML = xhr.responseXML;
 		}
 
-		if (xhr.readyState == xhr.DONE && xhr.status == 401) {
-			var bearerParams = this._parseAuthenticateHeader(this._xhr.getResponseHeader('WWW-Authenticate'), 'Bearer')
-			var headersExposed = !!xhr.getAllResponseHeaders(); // this is a hack for Firefox
+		if (xhr.readyState == xhr.DONE && xhr.status == 0) {
+			if (this._getAuthMechanism() == 'param') {
+				this._error("network-error", null);
+			} else {
+				this._setAuthMechanism("param");
+				bubble = false;
+				this._replay();
+			}
+		} else if (xhr.readyState == xhr.DONE && xhr.status == 401) {
+			var bearerParams, headersExposed = false;
+			if (this._getAuthMechanism() != 'param') {
+				bearerParams = this._parseAuthenticateHeader(this._xhr.getResponseHeader('WWW-Authenticate'), 'Bearer')
+				headersExposed = !!xhr.getAllResponseHeaders(); // this is a hack for Firefox
+			}
 			if (bearerParams && bearerParams.error == undefined) {
 				this._requestAuthorization();
 				bubble = false;
-			} else if (((bearerParams && bearerParams.error == 'invalid_token') || !headersExposed) && this._getAccessToken()) {
+			} else if (((bearerParams && bearerParams.error == 'invalid_token') || !headersExposed) && this._getRefreshToken()) {
 				this._removeAccessToken(); // It doesn't work any more.
 				this._refreshAccessToken();
 				bubble = false;
@@ -171,7 +187,7 @@
 			bubble = false;
 
 		// Pass it onwards.
-		if (bubble && this.onreadystatechange)
+		if (true || bubble && this.onreadystatechange)
 			this.onreadystatechange.apply(this);
 
 	},
@@ -214,8 +230,7 @@
 			redirect_uri: window.location.toString()
 		}));
 		if (data.error) {
-			if (this.oauthError)
-				this.oauthError("authorize", data);
+			this._error("authorize", data);
 		} else {
 			this._setAccessToken(data.access_token || '');
 			this._setRefreshToken(data.refresh_token || '');
@@ -227,17 +242,8 @@
 		var req = this._options.xmlHttpRequest();
 		var that = this;
 		req.onreadystatechange = function() {
-			if (req.readyState == req.DONE) {
-				if (req.status == 200) {
-					var data = JSON.parse(req.responseText);
-					that._setAccessToken(data.access_token || '');
-					that._setRefreshToken(data.refresh_token || '');
-					that._replay();
-				} else {
-					that._removeRefreshToken();
-					that._requestAuthorization();
-				}
-			}
+			if (req.readyState == req.DONE)
+				data = JSON.parse(req.responseText);
 		};
 		req.open('POST', this._options.tokenEndpoint, false);
 		req.setRequestHeader("Accept", "application/json");
@@ -248,23 +254,41 @@
 			grant_type: 'refresh_token',
 			refresh_token: this._getRefreshToken()
 		}));
+		if (data.error) {
+			this._removeRefreshToken();
+			this._requestAuthorization();
+			this._error("refresh", data);
+		} else {
+			this._setAccessToken(data.access_token || '');
+			this._setRefreshToken(data.refresh_token || '');
+			this._replay();
+		}
+	},
+
+	_error: function(type, data) {
+		if (this._options.error) this._options.error(type, data);
 	},
 
 	_replay: function() {
-		if (this._xhr.status > 0)
-			this.abort();
+		this._xhr.abort();
 		this._replaying = true;
 		this.open.apply(this, this._openArguments);
 		if (this._overriddenMimeType)
 			this._xhr.overrideMimeType(this._overriddenMimeType);
-		for (var i=0; i<this._headers.length; i++)
+		for (var i=0; i<this._headers.length; i++) {
+			console.log([i, this._headers.length, this._headers[i]]);
 			this._xhr.setRequestHeader.apply(this._xhr, this._headers[i]);
+		}
 		this.send.apply(this, this._sendArguments);
 	},
 
 	abort: function() {
 		this._xhr.abort();
 		this._replaying = false;
+		this._openArguments = null;
+		this._overriddenMimeType = null;
+		this._headers = [];
+		this._sendArguments = null;
 	},
 
 	setRequestHeader: function(header, value) {
@@ -276,13 +300,21 @@
 		this._openArguments = arguments;
 		if (this.responseType)
 			this._xhr.responseType = this.responseType;
-		this._xhr.open(method, url, async);
+
+		var accessToken = this._getAccessToken();
+		var authMechanism = this._getAuthMechanism();
+		var authedURL = url;
+		if (accessToken && authMechanism == 'param')
+			authedURL += (url.contains('?') ? '&' : '?') + 'bearer_token=' + encodeURIComponent(accessToken);
+
+		this._xhr.open(method, authedURL, async);
 	},
 
 	send: function(data) {
 		this._sendArguments = arguments;
 		var accessToken = this._getAccessToken();
-		if (accessToken)
+		var authMechanism = this._getAuthMechanism();
+		if (accessToken && (!authMechanism || authMechanism == 'header'))
 			this._xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
 
 		this._xhr.send(data);
@@ -302,14 +334,16 @@
 
 	window.oauth2 = {
 		OAuth2XMLHttpRequest: OAuth2XMLHttpRequest,
-		factory: function(options) { return function() { return new OAuth2XMLHttpRequest(options); }; }
+		factory: function(options) { return function() { return new OAuth2XMLHttpRequest(options); }; },
+		authorizationResponse: function() {
+			// Pass the authorization back to the opener if necessary.
+			if (window.opener && window.opener.oauthAuthorizationResponse) {
+				window.opener.oauthAuthorizationResponse(window, window.location.search);
+				window.close();
+			}
+		}
 	};
 
-	// Pass the authorization back to the opener if necessary.
-	if (window.opener && window.opener.oauthAuthorizationResponse) {
-		window.opener.oauthAuthorizationResponse(window, window.location.search);
-		window.close();
-	}
 
 })();
 
