@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, University of Oxford, <opendata@oucs.ox.ac.uk>
+/*! Copyright (c) 2012, University of Oxford, <opendata@oucs.ox.ac.uk>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
