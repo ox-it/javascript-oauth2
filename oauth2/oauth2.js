@@ -367,8 +367,12 @@
 		authorizationResponse: function() {
 			// Pass the authorization back to the opener if necessary.
 			if (window.opener && window.opener.oauthAuthorizationResponse) {
-				window.opener.oauthAuthorizationResponse(window, window.location.search);
+				if (window.opener.location.origin == window.location.origin) {
+					window.opener.oauthAuthorizationResponse(window, window.location.search);
 				window.close();
+				} else {
+					console.log("Origins don't match; not passing on code.");
+				}
 			}
 		}
 	};
