@@ -348,9 +348,7 @@
 		if (accessToken && (!authMechanism || authMechanism == 'header'))
 			this._xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
 
-		this._xhr.send(data);
-
-		return;
+		return this._xhr.send(data);
 	},
 
 	overrideMimeType: function(mime) {
