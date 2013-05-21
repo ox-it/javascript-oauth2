@@ -308,7 +308,6 @@
 		if (this._overriddenMimeType)
 			this._xhr.overrideMimeType(this._overriddenMimeType);
 		for (var i=0; i<this._headers.length; i++) {
-			console.log([i, this._headers.length, this._headers[i]]);
 			this._xhr.setRequestHeader.apply(this._xhr, this._headers[i]);
 		}
 		this.send.apply(this, this._sendArguments);
