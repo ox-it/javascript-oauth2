@@ -42,10 +42,23 @@
 		this._authMechanismParamName = this._options.localStoragePrefix+'auth-mechanism';
 		this._authorizationWindow = null;
 		this._xhr = this._options.xmlHttpRequest();
+		this._is_xdr = window.XDomainRequest && this._xhr instanceof window.XDomainRequest;
 		this._replaying = false;
 
 		var that = this;
 		this._xhr.onreadystatechange = function() { that._onreadystatechange.apply(that); };
+		if (this._is_xdr) {
+			that._xhr.onload = function() {
+				this.readyState = that.DONE;
+				this.status = 200; this.statusText = 'OK';
+				this.onreadystatechange();
+			};
+			that._xhr.onerror = function() {
+				this.readyState = that.DONE;
+				this.status = 401; this.statusText = 'Unauthorized (we assume)';
+				this.onreadystatechange();
+			};
+		}
 	};
 
 	OAuth2XMLHttpRequest.prototype = {
@@ -59,12 +72,20 @@
 	_defaultOptions: {
 		authorizeWindowWidth: 500,
 		authorizeWindowHeight: 500,
-		xmlHttpRequest: function() { return new (window.XDomainRequest != undefined ? XDomainRequest : XMLHttpRequest); },
+		xmlHttpRequest: function() {
+			if (XMLHttpRequest.withCredentials)
+				return new XMLHttpRequest();
+			if (window.XDomainRequest)
+				return new XDomainRequest();
+			else
+				return new XMLHttpRequest();
+		},
 		supportsCORS: window.XDomainRequest != undefined || "withCredentials" in XMLHttpRequest,
 		// Override to ask user for permission before calling authorize()
 		requestAuthorization: function(authorize) { authorize(); },
 		localStoragePrefix: 'oauth2.',
-		error: function(type, data) { console.log(["OAuth2 error", type, data]); }
+		error: function(type, data) { console.log(["OAuth2 error", type, data]); },
+		redirectURI: window.location.toString()
 	},
 
 	// Utility methods
@@ -117,14 +138,18 @@
 		return result;
 	},
 
-	_getAccessToken:     function() { return window.localStorage.getItem(this._accessTokenParamName); },
-	_getRefreshToken:    function() { return window.localStorage.getItem(this._refreshTokenParamName); },
-	_getAuthMechanism:    function() { return window.localStorage.getItem(this._authMechanismParamName); },
-	_setAccessToken:     function(value) { return window.localStorage.setItem(this._accessTokenParamName , value); },
-	_setRefreshToken:    function(value) { return window.localStorage.setItem(this._refreshTokenParamName, value); },
+	_getAccessToken:      function() { return window.localStorage.getItem(this._accessTokenParamName); },
+	_getRefreshToken:     function() { return window.localStorage.getItem(this._refreshTokenParamName); },
+	_getAuthMechanism:    function() {
+		if (this._is_xdr)
+			return "param"; // IE's XDomainRequest doesn't support sending headers, so don't try.
+		return window.localStorage.getItem(this._authMechanismParamName);
+	},
+	_setAccessToken:      function(value) { return window.localStorage.setItem(this._accessTokenParamName , value); },
+	_setRefreshToken:     function(value) { return window.localStorage.setItem(this._refreshTokenParamName, value); },
 	_setAuthMechanism:    function(value) { return window.localStorage.setItem(this._authMechanismParamName, value); },
-	_removeAccessToken:  function() { return window.localStorage.removeItem(this._accessTokenParamName); },
-	_removeRefreshToken: function() { return window.localStorage.removeItem(this._refreshTokenParamName); },
+	_removeAccessToken:   function() { return window.localStorage.removeItem(this._accessTokenParamName); },
+	_removeRefreshToken:  function() { return window.localStorage.removeItem(this._refreshTokenParamName); },
 	_removeAuthMechanism: function() { return window.localStorage.removeItem(this._authMechanismParamName); },
 
 
@@ -141,18 +166,18 @@
 		this.readyState = xhr.readyState;
 
 
-		if (xhr.readyState >= 2) {
+		if (xhr.readyState >= this.HEADERS_RECEIVED) {
 			this.status = xhr.status;
 			this.statusText = xhr.statusText;
 		}
-		if (xhr.readyState >= 3) {
+		if (xhr.readyState >= this.LOADING) {
 			this.response = xhr.response;
 			this.responseText = xhr.responseText;
 			this.responseType = xhr.responseType;
 			this.responseXML = xhr.responseXML;
 		}
 
-		if (xhr.readyState == xhr.DONE && xhr.status == 0) {
+		if (xhr.readyState == this.DONE && xhr.status == 0) {
 			if (this._getAuthMechanism() == 'param') {
 				this._error("network-error", null);
 			} else {
@@ -160,11 +185,11 @@
 				bubble = false;
 				this._replay();
 			}
-		} else if (xhr.readyState == xhr.DONE && xhr.status == 401) {
+		} else if (xhr.readyState == this.DONE && xhr.status == 401) {
 			var bearerParams, headersExposed = false;
 			if (this._getAuthMechanism() != 'param') {
 				bearerParams = this._parseAuthenticateHeader(this._xhr.getResponseHeader('WWW-Authenticate'), 'Bearer')
-				headersExposed = !!xhr.getAllResponseHeaders(); // this is a hack for Firefox
+				headersExposed = !this._is_xdr || !!xhr.getAllResponseHeaders(); // this is a hack for Firefox and IE
 			}
 			if (bearerParams && bearerParams.error == undefined) {
 				this._requestAuthorization();
@@ -201,9 +226,9 @@
 		var authorizeURL = this._options.authorizeEndpoint + '?' + this._param({
 			response_type: "code",
 			client_id: this._options.clientID,
-			redirect_uri: window.location.toString()
+			redirect_uri: this._options.redirectURI
 		});
-		this._authorizationWindow = window.open(authorizeURL, 'oauth-authorize',
+		this._authorizationWindow = window.open(authorizeURL, 'oauthauthorize',
 			'width=' + this._options.authorizeWindowWidth
 			+ ',height=' + this._options.authorizeWindowHeight
 			+ ',left=' + (screen.width - this._options.authorizeWindowWidth) / 2
@@ -216,53 +241,60 @@
 		var that = this;
 		var data;
 		req.open("POST", this._options.tokenEndpoint, false);
-		req.setRequestHeader("Accept", "application/json");
-		req.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-		req.onreadystatechange = function() {
-			if (req.readyState == req.DONE)
+		if (!this._is_xdr) { // Let's try to be explicit
+			req.setRequestHeader("Accept", "application/json");
+			req.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+		}
+		req.onload = function() {
+			if (that._is_xdr || req.readyState == that.DONE) {
 				data = JSON.parse(req.responseText);
+				if (data.error) {
+					that._error("authorize", data);
+				} else {
+					that._setAccessToken(data.access_token || '');
+					that._setRefreshToken(data.refresh_token || '');
+					that._replay();
+				}
+			};
 		};
 		req.send(this._param({
 			client_id: this._options.clientID,
 			client_secret: this._options.clientSecret,
 			grant_type: 'authorization_code',
 			code: this._getURLParameter(search, 'code'),
-			redirect_uri: window.location.toString()
+			redirect_uri: this._options.redirectURI
 		}));
-		if (data.error) {
-			this._error("authorize", data);
-		} else {
-			this._setAccessToken(data.access_token || '');
-			this._setRefreshToken(data.refresh_token || '');
-			this._replay();
-		}
+
 	},
 
 	_refreshAccessToken: function(options) {
 		var req = this._options.xmlHttpRequest();
 		var that = this;
-		req.onreadystatechange = function() {
-			if (req.readyState == req.DONE)
+		req.onload = function() {
+			if (that._is_xdr || req.readyState == that.DONE) {
 				data = JSON.parse(req.responseText);
+				if (data.error) {
+					that._removeRefreshToken();
+					that._requestAuthorization();
+					that._error("refresh", data);
+				} else {
+					that._setAccessToken(data.access_token || '');
+					that._setRefreshToken(data.refresh_token || '');
+					that._replay();
+				}
+			}
 		};
 		req.open('POST', this._options.tokenEndpoint, false);
-		req.setRequestHeader("Accept", "application/json");
-		req.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+		if (!this._is_xdr) { // Let's try to be explicit
+			req.setRequestHeader("Accept", "application/json");
+			req.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+		}
 		req.send(this._param({
 			client_id: this._options.clientID,
 			client_secret: this._options.clientSecret,
 			grant_type: 'refresh_token',
 			refresh_token: this._getRefreshToken()
 		}));
-		if (data.error) {
-			this._removeRefreshToken();
-			this._requestAuthorization();
-			this._error("refresh", data);
-		} else {
-			this._setAccessToken(data.access_token || '');
-			this._setRefreshToken(data.refresh_token || '');
-			this._replay();
-		}
 	},
 
 	_error: function(type, data) {
@@ -305,7 +337,7 @@
 		var authMechanism = this._getAuthMechanism();
 		var authedURL = url;
 		if (accessToken && authMechanism == 'param')
-			authedURL += (url.contains('?') ? '&' : '?') + 'bearer_token=' + encodeURIComponent(accessToken);
+			authedURL += ((url.indexOf('?') !== -1) ? '&' : '?') + 'bearer_token=' + encodeURIComponent(accessToken);
 
 		this._xhr.open(method, authedURL, async);
 	},
