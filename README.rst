@@ -150,7 +150,7 @@ Here's a minimal example:
                }
            }); 
        }
-   )};
+   });
 
    xhr.onreadystatechange = function() {
       // get something
