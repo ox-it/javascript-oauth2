@@ -1,4 +1,4 @@
-/*! Copyright (c) 2012, University of Oxford, <opendata@oucs.ox.ac.uk>
+/* Copyright (c) 2012, University of Oxford, <opendata@oucs.ox.ac.uk>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,26 +39,12 @@
 		this._options = this._extend({}, this._defaultOptions, options || {});
 		this._accessTokenParamName = this._options.localStoragePrefix+'access-token';
 		this._refreshTokenParamName = this._options.localStoragePrefix+'refresh-token';
+		this._accessTokenExpiryParamName = this._options.localStoragePrefix+'access-token-expiry';
 		this._authMechanismParamName = this._options.localStoragePrefix+'auth-mechanism';
 		this._authorizationWindow = null;
-		this._xhr = this._options.xmlHttpRequest();
-		this._is_xdr = window.XDomainRequest && this._xhr instanceof window.XDomainRequest;
+		this._instantiateXHR();
 		this._replaying = false;
 
-		var that = this;
-		this._xhr.onreadystatechange = function() { that._onreadystatechange.apply(that); };
-		if (this._is_xdr) {
-			that._xhr.onload = function() {
-				this.readyState = that.DONE;
-				this.status = 200; this.statusText = 'OK';
-				this.onreadystatechange();
-			};
-			that._xhr.onerror = function() {
-				this.readyState = that.DONE;
-				this.status = 401; this.statusText = 'Unauthorized (we assume)';
-				this.onreadystatechange();
-			};
-		}
 	};
 
 	OAuth2XMLHttpRequest.prototype = {
@@ -86,6 +72,28 @@
 		localStoragePrefix: 'oauth2.',
 		error: function(type, data) { console.log(["OAuth2 error", type, data]); },
 		redirectURI: window.location.toString()
+	},
+
+	_instantiateXHR: function() {
+		this._xhr = this._options.xmlHttpRequest();
+		this._is_xdr = window.XDomainRequest && this._xhr instanceof window.XDomainRequest;
+
+		this._xhr.onreadystatechange = _.bind(function() {
+			this._onreadystatechange.apply(this);
+		}, this);
+
+		if (this._is_xdr) {
+			this._xhr.onload = function() {
+				this.readyState = OAuth2XMLHttpRequest.prototype.DONE;
+				this.status = 200; this.statusText = 'OK';
+				this.onreadystatechange();
+			};
+			this._xhr.onerror = function() {
+				this.readyState = OAuth2XMLHttpRequest.prototype.DONE;
+				this.status = 401; this.statusText = 'Unauthorized (we assume)';
+				this.onreadystatechange();
+			};
+		}
 	},
 
 	// Utility methods
@@ -138,19 +146,22 @@
 		return result;
 	},
 
-	_getAccessToken:      function() { return window.localStorage.getItem(this._accessTokenParamName); },
-	_getRefreshToken:     function() { return window.localStorage.getItem(this._refreshTokenParamName); },
-	_getAuthMechanism:    function() {
+	_getAccessToken:          function() { return window.localStorage.getItem(this._accessTokenParamName); },
+	_getRefreshToken:         function() { return window.localStorage.getItem(this._refreshTokenParamName); },
+	_getAccessTokenExpiry:    function() { return window.localStorage.getItem(this._accessTokenExpiryParamName); },
+	_getAuthMechanism:        function() {
 		if (this._is_xdr)
 			return "param"; // IE's XDomainRequest doesn't support sending headers, so don't try.
 		return window.localStorage.getItem(this._authMechanismParamName);
 	},
-	_setAccessToken:      function(value) { return window.localStorage.setItem(this._accessTokenParamName , value); },
-	_setRefreshToken:     function(value) { return window.localStorage.setItem(this._refreshTokenParamName, value); },
-	_setAuthMechanism:    function(value) { return window.localStorage.setItem(this._authMechanismParamName, value); },
-	_removeAccessToken:   function() { return window.localStorage.removeItem(this._accessTokenParamName); },
-	_removeRefreshToken:  function() { return window.localStorage.removeItem(this._refreshTokenParamName); },
-	_removeAuthMechanism: function() { return window.localStorage.removeItem(this._authMechanismParamName); },
+	_setAccessToken:          function(value) { return window.localStorage.setItem(this._accessTokenParamName , value); },
+	_setRefreshToken:         function(value) { return window.localStorage.setItem(this._refreshTokenParamName, value); },
+	_setAccessTokenExpiry:    function(value) { return window.localStorage.setItem(this._accessTokenExpiryParamName, value); },
+	_setAuthMechanism:        function(value) { return window.localStorage.setItem(this._authMechanismParamName, value); },
+	_removeAccessToken:       function() { return window.localStorage.removeItem(this._accessTokenParamName); },
+	_removeRefreshToken:      function() { return window.localStorage.removeItem(this._refreshTokenParamName); },
+	_removeAccessTokenExpiry: function() { return window.localStorage.removeItem(this._accessTokenExpiryParamName); },
+	_removeAuthMechanism:     function() { return window.localStorage.removeItem(this._authMechanismParamName); },
 
 
 	_requestAuthorization: function() {
@@ -212,7 +223,7 @@
 			bubble = false;
 
 		// Pass it onwards.
-		if (true || bubble && this.onreadystatechange)
+		if (bubble && this.onreadystatechange)
 			this.onreadystatechange.apply(this);
 
 	},
@@ -226,7 +237,8 @@
 		var authorizeURL = this._options.authorizeEndpoint + '?' + this._param({
 			response_type: "code",
 			client_id: this._options.clientID,
-			redirect_uri: this._options.redirectURI
+			redirect_uri: this._options.redirectURI,
+			scope: (this._options.scopes || []).join(' ')
 		});
 		this._authorizationWindow = window.open(authorizeURL, 'oauthauthorize',
 			'width=' + this._options.authorizeWindowWidth
@@ -251,8 +263,7 @@
 				if (data.error) {
 					that._error("authorize", data);
 				} else {
-					that._setAccessToken(data.access_token || '');
-					that._setRefreshToken(data.refresh_token || '');
+					that._newAccessToken(data);
 					that._replay();
 				}
 			};
@@ -274,15 +285,20 @@
 			if (that._is_xdr || req.readyState == that.DONE) {
 				data = JSON.parse(req.responseText);
 				if (data.error) {
+					that._error("refresh", data);
 					that._removeRefreshToken();
 					that._requestAuthorization();
-					that._error("refresh", data);
 				} else {
-					that._setAccessToken(data.access_token || '');
-					that._setRefreshToken(data.refresh_token || '');
-					that._replay();
+					that._newAccessToken(data);
+                                        if (options.replay != false)
+						that._replay();
 				}
 			}
+		};
+		req.onerror = function() {
+			that._error("refresh");
+			that._removeRefreshToken();
+			that._requestAuthorization();
 		};
 		req.open('POST', this._options.tokenEndpoint, false);
 		if (!this._is_xdr) { // Let's try to be explicit
@@ -297,12 +313,21 @@
 		}));
 	},
 
+	_newAccessToken: function(data) {
+		this._setAccessToken(data.access_token || '');
+		this._setRefreshToken(data.refresh_token || '');
+		if (data.expires_in)
+			this._setAccessTokenExpiry(Date.now() + data.expires_in * 1000);
+		else if (that._getAccessTokenExpiry())
+			this._removeAccessTokenExpiry();
+	},
+
 	_error: function(type, data) {
 		if (this._options.error) this._options.error(type, data);
 	},
 
 	_replay: function() {
-		this._xhr.abort();
+		this._instantiateXHR();
 		this._replaying = true;
 		this.open.apply(this, this._openArguments);
 		if (this._overriddenMimeType)
@@ -334,9 +359,7 @@
 
 		var accessToken = this._getAccessToken();
 		var authMechanism = this._getAuthMechanism();
-		var authedURL = url;
-		if (accessToken && authMechanism == 'param')
-			authedURL += ((url.indexOf('?') !== -1) ? '&' : '?') + 'bearer_token=' + encodeURIComponent(accessToken);
+		var authedURL = (accessToken && authMechanism == 'param') ? this.getAuthorizedURL(url) : url;
 
 		this._xhr.open(method, authedURL, async);
 	},
@@ -357,7 +380,19 @@
 	},
 
 	getAllResponseHeaders: function() { return this._xhr.getAllResponseHeaders(); },
-	getResponseHeader: function(header) { return this._xhr.getResponseHeader(header); }
+	getResponseHeader: function(header) { return this._xhr.getResponseHeader(header); },
+	
+	getAuthorizedURL: function(url) {
+		return url
+		     + ((url.indexOf('?') !== -1) ? '&' : '?')
+		     + 'bearer_token=' + encodeURIComponent(this._getAccessToken());
+	},
+
+	ensureAccessTokenLifetime(millis) {
+		var expires_at = this._getAccessTokenExpiry();
+		if (expires_at && Date.now() + millis > expires_at)
+			this._refreshAccessToken({replay: false});
+	}
 
 	};
 
