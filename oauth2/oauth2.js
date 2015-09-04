@@ -167,7 +167,7 @@
 	_requestAuthorization: function() {
 		var that = this;
 		this._options.requestAuthorization(function() {
-			that._authorize();
+			return that._authorize();
 		});
 	},
 
@@ -246,6 +246,7 @@
 			+ ',left=' + (screen.width - this._options.authorizeWindowWidth) / 2
 			+ ',top=' + (screen.height - this._options.authorizeWindowHeight) / 2
 			+ ',menubar=no,toolbar=no');
+		return this._authorizationWindow;
 	},
 
 	_authorizationResponse: function(search, options) {
@@ -414,4 +415,3 @@
 
 
 })();
-
