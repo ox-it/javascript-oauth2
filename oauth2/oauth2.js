@@ -389,7 +389,7 @@
 		     + 'bearer_token=' + encodeURIComponent(this._getAccessToken());
 	},
 
-	ensureAccessTokenLifetime(millis) {
+	ensureAccessTokenLifetime: function(millis) {
 		var expires_at = this._getAccessTokenExpiry();
 		if (expires_at && Date.now() + millis > expires_at)
 			this._refreshAccessToken({replay: false});
