@@ -36,7 +36,7 @@
 		this._headers = [];
 		this._openArguments = null;
 		this._sendArguments = null;
-		this._options = this._extend({}, this._defaultOptions, options || {});
+		this._options = _.extend({}, this._defaultOptions, options || {});
 		this._accessTokenParamName = this._options.localStoragePrefix+'access-token';
 		this._refreshTokenParamName = this._options.localStoragePrefix+'refresh-token';
 		this._accessTokenExpiryParamName = this._options.localStoragePrefix+'access-token-expiry';
@@ -97,14 +97,6 @@
 	},
 
 	// Utility methods
-
-	_extend: function () {
-		var obj = arguments[0];
-		for (var i=1; i<arguments.length; i++)
-			for (var k in arguments[i])
-				obj[k] = arguments[i][k];
-		return obj;
-	},
 
 	_getURLParameter: function(search, name) {
 		var part = search.match(RegExp("[?|&]"+name+'=(.*?)(&|$)'));
