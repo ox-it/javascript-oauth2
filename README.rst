@@ -123,7 +123,7 @@ Here's a minimal example:
 
 .. code:: javascript
 
-   var xhr = new oauth.OAuth2HttpRequest({
+   var xhr = new oauth.OAuth2XMLHttpRequest({
        authorizeEndpoint: "https://example.com/oauth2/authorize",
        tokenEndpoint: "https://example.com/oauth2/token",
        clientID: "client id",

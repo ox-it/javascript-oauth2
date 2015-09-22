@@ -36,7 +36,7 @@
 		this._headers = [];
 		this._openArguments = null;
 		this._sendArguments = null;
-		this._options = this._extend({}, this._defaultOptions, options || {});
+		this._options = _.extend({}, this._defaultOptions, options || {});
 		this._accessTokenParamName = this._options.localStoragePrefix+'access-token';
 		this._refreshTokenParamName = this._options.localStoragePrefix+'refresh-token';
 		this._accessTokenExpiryParamName = this._options.localStoragePrefix+'access-token-expiry';
@@ -98,14 +98,6 @@
 
 	// Utility methods
 
-	_extend: function () {
-		var obj = arguments[0];
-		for (var i=1; i<arguments.length; i++)
-			for (var k in arguments[i])
-				obj[k] = arguments[i][k];
-		return obj;
-	},
-
 	_getURLParameter: function(search, name) {
 		var part = search.match(RegExp("[?|&]"+name+'=(.*?)(&|$)'));
 		if (part) return decodeURIComponent(part[1]);
@@ -113,26 +105,77 @@
 
 	_parseAuthenticateHeader: function(value, scheme) {
 		if (!value) return null;
-		var re = /([a-z_\d]+)(=("([^\\"]*(\\.)?)*")|[a-z_\d]*)?(,)?(\s+|$)/i;
-		var methods = [], method = null;
-		while (value.length) {
-			var term = re.exec(value);
-			value = value.substr(term[0].length);
-			if (!term[6] && term[7]) {
-				method = {scheme: term[1], params: {}};
-				methods.push(method);
-			} else {
-				if (term[3].match(/^"/)) term[3] = term[3].substr(1, term[3].length-2);
-				method.params[term[1]] = term[3].replace(/\\"/, '"');
-			}
-		}
-		if (scheme) {
-			for (var i=0; i<methods.length; i++)
-				if (methods[i].scheme == scheme)
-					return methods[i].params;
-			return null;
-		} else
-			return methods;
+
+                var _tokens = [
+                    ['token', /^([!#$%&'*+\-.^_`|~\w\/]+(?:={1,2}$)?)/],
+                    ['token', /^"(([^"\\]|\\\\|\\")+)"/],
+                    [null, /^\s+/],
+                    ['equals', /^(=)/],
+                    ['comma', /^(,)/],
+                ];
+
+                // Tokenize
+                var tokens = [];
+                while (value.length) {
+                    for (var i=0; i<_tokens.length; i++) {
+                        var name = _tokens[i][0], pattern = _tokens[i][1];
+                        var match = pattern.exec(value);
+                        if (match) {
+                            if (name)
+                                tokens.push([name, match[1]]);
+                            value = value.substr(match[0].length);
+                            break;
+                        }
+                    }
+                    if (i == _tokens.length) // Ran out of patterns
+                        return null;
+                }
+
+                // Join name-value pairs
+                for (var i=0; i<tokens.length-2; i++) {
+                    if (tokens[i  ][0] == 'token' &&
+                        tokens[i+1][0] == 'equals' &&
+                        tokens[i+2][0] == 'token') {
+                        var pair = {};
+                        pair[tokens[i][1]] = tokens[i+2][1];
+                        tokens.splice(i, 3, ['pair', pair]);
+                    }
+                }
+
+                // Construct challenges
+                var groupedChallenges = [];
+                while (tokens.length) {
+                    var i = 1;
+                    if (tokens.length == 1) {}
+                    else if (tokens[1][0] == 'comma') {}
+                    else if (tokens[1][0] == 'token') {
+                        i = 2;
+                    } else {
+                        while (i < tokens.length && tokens[i][0] == 'pair') {
+                            i += 2;
+                        }
+                        i -= 1;
+                    }
+                    groupedChallenges.push([tokens[0][1], tokens.slice(1, i)])
+                    tokens.splice(0, i + 1);
+                }
+
+                var challenges = {};
+                for (var i=0; i<groupedChallenges.length; i++) {
+                    var args = [], kwargs = {};
+                    var name = groupedChallenges[i][0];
+                    var tokens = groupedChallenges[i][1];
+                    for (var j=0; j<tokens.length; j++) {
+                        var token = tokens[j];
+                        if (token[0] == 'token')
+                            args.push(token[1]);
+                        else if (token[0] == 'pair')
+                            _.extend(kwargs, token[1]);
+                    }
+                    challenges[name] = args.length ? args[0] : kwargs;
+                }
+
+                return challenges;
 	},
 
 	_param: function(data) {
@@ -207,7 +250,7 @@
 				bubble = false;
 			} else if (((bearerParams && bearerParams.error == 'invalid_token') || !headersExposed) && this._getRefreshToken()) {
 				this._removeAccessToken(); // It doesn't work any more.
-				this._refreshAccessToken();
+				this._refreshAccessToken({});
 				bubble = false;
 			} else if (!headersExposed && !this._getRefreshToken()) {
 				this._requestAuthorization();
@@ -354,6 +397,7 @@
 	},
 
 	open: function(method, url, async) {
+                if (async == undefined) async = true;
 		this._openArguments = arguments;
 		if (this.responseType)
 			this._xhr.responseType = this.responseType;
