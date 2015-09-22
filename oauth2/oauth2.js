@@ -154,14 +154,14 @@
                         while (i < tokens.length && tokens[i][0] == 'pair') {
                             i += 2;
                         }
-                        j -= 1;
+                        i -= 1;
                     }
-                    challenges.append([tokens[0][1], tokens.slice(1, i)])
+                    groupedChallenges.push([tokens[0][1], tokens.slice(1, i)])
                     tokens.splice(0, i + 1);
                 }
 
                 var challenges = {};
-                for (var i=0, i<groupedChallenges.length; i++) {
+                for (var i=0; i<groupedChallenges.length; i++) {
                     var args = [], kwargs = {};
                     var name = groupedChallenges[i][0];
                     var tokens = groupedChallenges[i][1];
@@ -173,6 +173,7 @@
                             _.extend(kwargs, token[1]);
                     }
                     challenges[name] = args.length ? args[0] : kwargs;
+                }
 
                 return challenges;
 	},
@@ -249,7 +250,7 @@
 				bubble = false;
 			} else if (((bearerParams && bearerParams.error == 'invalid_token') || !headersExposed) && this._getRefreshToken()) {
 				this._removeAccessToken(); // It doesn't work any more.
-				this._refreshAccessToken();
+				this._refreshAccessToken({});
 				bubble = false;
 			} else if (!headersExposed && !this._getRefreshToken()) {
 				this._requestAuthorization();
@@ -396,6 +397,7 @@
 	},
 
 	open: function(method, url, async) {
+                if (async == undefined) async = true;
 		this._openArguments = arguments;
 		if (this.responseType)
 			this._xhr.responseType = this.responseType;
