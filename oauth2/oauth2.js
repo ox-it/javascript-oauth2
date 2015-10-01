@@ -71,7 +71,9 @@
 		requestAuthorization: function(authorize) { authorize(); },
 		localStoragePrefix: 'oauth2.',
 		error: function(type, data) { console.log(["OAuth2 error", type, data]); },
-		redirectURI: window.location.toString()
+		redirectURI: window.location.toString(),
+		// Override to use a different name for the WWW-Authenticate header (necessary for cordova on iOS)
+		renameWWWAuthenticateHeader: null
 	},
 
 	_instantiateXHR: function() {
@@ -242,7 +244,8 @@
 		} else if (xhr.readyState == this.DONE && xhr.status == 401) {
 			var bearerParams, headersExposed = false;
 			if (this._getAuthMechanism() != 'param') {
-				bearerParams = this._parseAuthenticateHeader(this._xhr.getResponseHeader('WWW-Authenticate'), 'Bearer')
+				var authenticateHeaderName = this._options.renameWWWAuthenticateHeader == null ? 'WWW-Authenticate' : this._options.renameWWWAuthenticateHeader;
+				bearerParams = this._parseAuthenticateHeader(this._xhr.getResponseHeader(authenticateHeaderName), 'Bearer')
 				headersExposed = !this._is_xdr || !!xhr.getAllResponseHeaders(); // this is a hack for Firefox and IE
 			}
 			if (bearerParams && bearerParams.error == undefined) {
@@ -413,6 +416,12 @@
 		this._sendArguments = arguments;
 		var accessToken = this._getAccessToken();
 		var authMechanism = this._getAuthMechanism();
+
+		//optionally add a header to request that the server rename the WWW-Authenticate header in the response
+		if(this._options.renameWWWAuthenticateHeader !== null) {
+			this._xhr.setRequestHeader('X-Rename-WWW-Authenticate', this._options.renameWWWAuthenticateHeader);
+		}
+
 		if (accessToken && (!authMechanism || authMechanism == 'header'))
 			this._xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
 
