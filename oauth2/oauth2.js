@@ -177,7 +177,10 @@
                     challenges[name] = args.length ? args[0] : kwargs;
                 }
 
-                return challenges;
+		if (scheme)
+			return challenges[scheme];
+		else
+			return challenges;
 	},
 
 	_param: function(data) {
