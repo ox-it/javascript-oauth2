@@ -27,6 +27,10 @@
 (function() {
 	var authorizationResponseEventName = 'oauth2-authorization-response';
 	var requiredOptions = ['clientID', 'clientSecret', 'authorizeEndpoint', 'tokenEndpoint'];
+	var accessTokenParamName = 'access-token';
+	var refreshTokenParamName = 'refresh-token';
+	var accessTokenExpiryParamName = 'access-token-expiry';
+	var authMechanismParamName = 'auth-mechanism';
 
 	var OAuth2XMLHttpRequest = function (options) {
 		for (var i=0; i<requiredOptions.length; i++)
@@ -37,10 +41,10 @@
 		this._openArguments = null;
 		this._sendArguments = null;
 		this._options = _.extend({}, this._defaultOptions, options || {});
-		this._accessTokenParamName = this._options.localStoragePrefix+'access-token';
-		this._refreshTokenParamName = this._options.localStoragePrefix+'refresh-token';
-		this._accessTokenExpiryParamName = this._options.localStoragePrefix+'access-token-expiry';
-		this._authMechanismParamName = this._options.localStoragePrefix+'auth-mechanism';
+		this._accessTokenParamName = this._options.localStoragePrefix+accessTokenParamName;
+		this._refreshTokenParamName = this._options.localStoragePrefix+refreshTokenParamName;
+		this._accessTokenExpiryParamName = this._options.localStoragePrefix+accessTokenExpiryParamName;
+		this._authMechanismParamName = this._options.localStoragePrefix+authMechanismParamName;
 		this._authorizationWindow = null;
 		this._instantiateXHR();
 		this._replaying = false;
@@ -466,6 +470,19 @@
 					console.log("Origins don't match; not passing on code.");
 				}
 			}
+		},
+		logout: function (options) {
+			// log the user out
+			// remove all auth info in local storage for the given prefix
+			var defaultOptions = {
+				localStoragePrefix: "oauth2.signupapp."
+			}
+			var opts = _.extend({}, defaultOptions, options || {});
+			localStorage.removeItem(opts.localStoragePrefix + accessTokenParamName);
+			localStorage.removeItem(opts.localStoragePrefix + refreshTokenParamName);
+			localStorage.removeItem(opts.localStoragePrefix + accessTokenExpiryParamName);
+			localStorage.removeItem(opts.localStoragePrefix + authMechanismParamName);
+
 		}
 	};
 
