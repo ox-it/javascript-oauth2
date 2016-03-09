@@ -31,7 +31,7 @@
 	var refreshTokenParamName = 'refresh-token';
 	var accessTokenExpiryParamName = 'access-token-expiry';
 	var authMechanismParamName = 'auth-mechanism';
-	var localStoragePrefix = 'oauth2.';
+	var defaultLocalStoragePrefix = 'oauth2.';
 
 	var OAuth2XMLHttpRequest = function (options) {
 		for (var i=0; i<requiredOptions.length; i++)
@@ -74,7 +74,7 @@
 		supportsCORS: window.XDomainRequest != undefined || "withCredentials" in XMLHttpRequest,
 		// Override to ask user for permission before calling authorize()
 		requestAuthorization: function(authorize) { authorize(); },
-		localStoragePrefix: localStoragePrefix,
+		localStoragePrefix: defaultLocalStoragePrefix,
 		error: function(type, data) { console.log(["OAuth2 error", type, data]); },
 		redirectURI: window.location.toString(),
 		// Override to use a different name for the WWW-Authenticate header (necessary for cordova on iOS)
@@ -476,7 +476,7 @@
 			// log the user out
 			// remove all auth info in local storage for the given prefix
 			var defaultOptions = {
-				localStoragePrefix: localStoragePrefix
+				localStoragePrefix: defaultLocalStoragePrefix
 			}
 			var opts = _.extend({}, defaultOptions, options || {});
 			localStorage.removeItem(opts.localStoragePrefix + accessTokenParamName);
