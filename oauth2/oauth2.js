@@ -475,7 +475,7 @@
 			// log the user out
 			// remove all auth info in local storage for the given prefix
 			var defaultOptions = {
-				localStoragePrefix: "oauth2.signupapp."
+				localStoragePrefix: "oauth2."
 			}
 			var opts = _.extend({}, defaultOptions, options || {});
 			localStorage.removeItem(opts.localStoragePrefix + accessTokenParamName);
